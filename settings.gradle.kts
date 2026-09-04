@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "InstaReelsBlocker"
+rootProject.name = "InstagramLimiter"
 include(":app")

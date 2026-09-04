@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.reelsblocker"
+    namespace = "com.example.instagramlimiter"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.reelsblocker"
+        applicationId = "com.example.instagramlimiter"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

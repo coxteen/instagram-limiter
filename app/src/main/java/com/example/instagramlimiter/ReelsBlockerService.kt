@@ -1,4 +1,4 @@
-package com.example.reelsblocker
+package com.example.instagramlimiter
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
