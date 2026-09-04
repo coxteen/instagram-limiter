@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Reels Blocker</string>
+    <string name="accessibility_service_description">Monitorizează și limitează vizionarea de Reels la maximum 3 pe sesiune.</string>
+</resources>
