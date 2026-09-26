@@ -1,115 +1,132 @@
+<div align="center">
+
 # Instagram Limiter
 
-A lightweight Android app designed to reduce excessive Instagram scrolling by limiting the number of Reels and Stories a user can view in a session.
+**Take back control of your screen time by limiting Instagram Reels and Stories in each session.**
 
-When the configured threshold is reached, the app automatically returns the user to the home screen and shows a blocking overlay message encouraging them to take a break.
+[![Android](https://img.shields.io/badge/Platform-Android%208.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](https://www.android.com/)
+[![Kotlin](https://img.shields.io/badge/Kotlin-1.9.22-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org/)
+[![Gradle](https://img.shields.io/badge/Gradle-8.5-02303A?style=flat-square&logo=gradle&logoColor=white)](https://gradle.org/)
 
-## Features
+</div>
 
-- Tracks Instagram Stories viewed in a session
-- Tracks Instagram Reels viewed in a session
-- Enforces a limit of 3 items before blocking access
-- Returns the user to the home screen when the limit is reached
-- Displays a full-screen overlay with a reminder message
-- Uses Android Accessibility Services to detect Instagram activity
+---
 
-## Project Overview
+## Problem & Motivation
 
-This project is a small Android application built with Kotlin and the Android Gradle Plugin. It targets Android API 34 and uses:
+Short-form video feeds are designed for continuous viewing. Instagram Limiter uses Android's Accessibility Service to count Reel scrolling and Story changes, then interrupts the session when the configured threshold is reached.
 
-- Accessibility Service monitoring for Instagram screens
-- Overlay permission to show a blocking message
-- Event detection for story and reel navigation
+At the limit, the app returns the device to the Home screen and displays a full-screen reminder. The overlay can be dismissed manually. The app does not force-stop Instagram.
 
-## App Behavior
+## Key Features
 
-The app monitors for Instagram activity inside the package:
+- **Separate session counters:** Reels and Stories are counted independently, with a default threshold of 3 for each.
+- **Reel scroll detection:** Counts debounced scroll events while Instagram's Reels viewer is detected.
+- **Story transition detection:** Counts changes to the visible Story author.
+- **Screen-time interruption:** Returns to the Home screen and shows a reminder overlay at the threshold.
+- **No root required:** Uses Android's Accessibility Service and `SYSTEM_ALERT_WINDOW` permission.
+- **Event-driven monitoring:** Processes accessibility events and resets counters when an event from another app is received.
 
-- `com.instagram.android`
+## Architecture & How It Works
 
-When the user opens Instagram and watches Reels or Stories, the service counts them. Once the session reaches the limit:
+```mermaid
+sequenceDiagram
+	autonumber
+	actor User
+	participant Instagram
+	participant Service as ReelsBlockerService
+	participant Android as Android OS
+	participant Overlay as WindowManager overlay
 
-1. Android returns to the home screen
-2. A reminder overlay appears
-3. The user must dismiss the overlay manually
-4. Counters reset when Instagram is no longer active
+	User->>Instagram: Scroll a Reel or advance a Story
+	Instagram-->>Service: Accessibility event
+	Service->>Service: Check viewer and update its counter
+	alt Counter is below 3
+		Service-->>User: Show count in a toast
+	else Counter reaches 3
+		Service->>Android: Perform Home action
+		Service->>Overlay: Show reminder if overlay permission is granted
+		User->>Overlay: Tap dismiss button
+		Overlay-->>Service: Remove overlay
+	end
+```
 
-## Required Permissions
+## Tech Stack
 
-To work correctly, the app requires:
+| Category | Technology |
+| --- | --- |
+| Platform | Native Android, minimum API 26; target API 34 |
+| Language | [Kotlin 1.9.22](https://kotlinlang.org/) |
+| Build system | [Gradle 8.5](https://gradle.org/) with Android Gradle Plugin 8.2.2 |
+| Android APIs | `AccessibilityService`, `WindowManager`, `SYSTEM_ALERT_WINDOW` |
+| Java target | Java 17 |
 
-- Accessibility Service permission
-- Display over other apps permission (`SYSTEM_ALERT_WINDOW`)
-
-### Steps to enable
-
-1. Install the app on an Android device
-2. Open Android Settings
-3. Go to Accessibility
-4. Enable the app named `Instagram Limiter`
-5. Allow the app to draw over other apps
-
-## Build Instructions
+## Getting Started
 
 ### Prerequisites
 
-- Android Studio
 - JDK 17
-- Android SDK with API 34
-- Gradle wrapper included in the project
+- Android SDK with Android 14 / API 34 and corresponding build tools
+- An Android 8.0+ device or emulator
+- For USB deployment: Android Platform Tools (`adb`), Developer Options, and USB debugging
 
-### Build the app
+### Build
 
-```bash
-./gradlew assembleDebug
-```
-
-On Windows:
+From the repository directory, build a debug APK:
 
 ```powershell
-./gradlew.bat assembleDebug
+.\gradlew.bat assembleDebug
 ```
 
-## Run the app
+The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
-1. Connect an Android device or start an emulator
-2. Open the project in Android Studio
-3. Select the device/emulator
-4. Click Run
+### Install on a connected device
 
-## Project Structure
+Check that the device is connected and authorized, then install:
 
-```text
-insta-reels-blocker/
-├── app/
-│   ├── build.gradle.kts
-│   └── src/
-│       ├── main/
-│       │   ├── java/
-│       │   │   └── com/example/instagramlimiter/
-│       │   │       └── ReelsBlockerService.kt
-│       │   ├── res/
-│       │   │   ├── values/
-│       │   │   └── xml/
-│       │   └── AndroidManifest.xml
-├── build.gradle.kts
-├── gradle.properties
-├── gradlew
-├── gradlew.bat
-├── settings.gradle.kts
-└── README.md
+```powershell
+adb devices
+.\gradlew.bat installDebug
 ```
 
-## Important Notes
+### Grant permissions
 
-- This app depends on Instagram UI elements and view IDs, so it may stop working correctly after Instagram updates redesign the interface.
-- Accessibility Services can be sensitive to app changes and Android policy updates.
-- This is intended as a personal productivity tool and should be used responsibly.
+The app needs permission to display over other apps and an enabled Accessibility Service.
 
-## License
+To grant overlay permission using ADB:
 
-This project currently does not include a license file. If you are publishing or distributing it, add a suitable open-source license such as MIT or Apache 2.0.
+```powershell
+adb shell appops set com.example.instagramlimiter SYSTEM_ALERT_WINDOW allow
+```
 
-## Disclaimer
+Alternatively, on the device go to **Settings > Apps > Special app access > Display over other apps > Instagram Limiter** and allow it.
 
-This app is intended for self-control and digital wellness use. It is not affiliated with Instagram or Meta.
+Enable the Accessibility Service from **Settings > Accessibility > Installed apps** (wording varies by device), then select **Instagram Limiter** and turn on its service.
+
+On Android 13/14 and some device builds, Android may block enabling a sideloaded app's accessibility service. If shown, open the app's settings, use the top-right menu to allow restricted settings, then enable the service.
+
+## Configuration
+
+The session threshold and Reel scroll debounce duration are defined near the top of [`ReelsBlockerService.kt`](app/src/main/java/com/example/instagramlimiter/ReelsBlockerService.kt):
+
+```kotlin
+private val maxLimit = 3
+private val scrollDebounceMs = 1200L
+```
+
+The reminder text is passed to `blockAndExitToHome` at the point where the Story or Reel counter reaches its threshold. Rebuild and reinstall after changing the values:
+
+```powershell
+.\gradlew.bat installDebug
+```
+
+## Notes
+
+- Detection relies on Instagram package names and view IDs; changes to Instagram's interface may affect counting.
+- Reel and Story counters are independent, and a threshold is enforced for either content type.
+- Counters reset when the service receives an accessibility event from another app.
+- This personal productivity project is not affiliated with Instagram or Meta.
+
+## License & Author
+
+No license file or author profile is currently included in this repository. Add those details before publishing or redistributing the project.
