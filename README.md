@@ -8,6 +8,8 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9.22-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org/)
 [![Gradle](https://img.shields.io/badge/Gradle-8.5-02303A?style=flat-square&logo=gradle&logoColor=white)](https://gradle.org/)
 
+[Report Bug](https://github.com/coxteen/quick-calendar/issues) · [Request Feature](https://github.com/coxteen/quick-calendar/issues)
+
 </div>
 
 ---
@@ -63,12 +65,85 @@ sequenceDiagram
 
 ## Getting Started
 
-### Prerequisites
+### Prerequisites & Environment Setup
 
-- JDK 17
-- Android SDK with Android 14 / API 34 and corresponding build tools
-- An Android 8.0+ device or emulator
-- For USB deployment: Android Platform Tools (`adb`), Developer Options, and USB debugging
+Before building and deploying the application from source, make sure your development environment and device are properly configured.
+
+#### 1. Java Development Kit (JDK 17)
+
+Gradle and the Android Gradle Plugin (AGP) require OpenJDK 17.
+
+1. Search online for **JDK 17 Windows download**. Download the Windows installer (`.msi` or `.exe`) from an official JDK provider, such as [Microsoft OpenJDK](https://learn.microsoft.com/en-us/java/openjdk/download#openjdk-17) or [Eclipse Temurin](https://adoptium.net/temurin/releases/?version=17).
+2. Run the downloaded installer and complete the setup. If offered, enable the options to set `JAVA_HOME` and add Java to `PATH`.
+3. Close and reopen your terminal, then verify the installation:
+
+	```powershell
+	java -version
+	```
+
+The output should report version 17.
+
+#### 2. Android SDK, Command-Line Tools & Platform Tools
+
+To build and interact with your phone without installing Android Studio:
+
+1. Create this directory structure under `%LOCALAPPDATA%\Android\Sdk`. Create the folders yourself, then extract the downloaded command-line tools archive so its `bin` and `lib` folders are directly inside `latest`:
+
+	```text
+%LOCALAPPDATA%\Android\Sdk\
+└── cmdline-tools\
+    └── latest\
+        ├── bin\
+        │   └── sdkmanager.bat
+        └── lib\
+	```
+
+2. Download the **Command line tools only** archive for Windows from the [official Android Developer portal](https://developer.android.com/studio#command-tools). Extract its contents into the `latest` folder shown above.
+
+3. Configure `ANDROID_HOME` and update your user `PATH` in PowerShell:
+
+	```powershell
+	[Environment]::SetEnvironmentVariable("ANDROID_HOME", "$env:LOCALAPPDATA\Android\Sdk", "User")
+
+	$currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
+	$sdkPaths = "$env:LOCALAPPDATA\Android\Sdk\cmdline-tools\latest\bin;$env:LOCALAPPDATA\Android\Sdk\platform-tools"
+	[Environment]::SetEnvironmentVariable("Path", "$currentPath;$sdkPaths", "User")
+	```
+
+	Restart your terminal afterwards to reload the environment variables.
+
+4. Install Android 14 (API 34), Build Tools, and Platform Tools. Accept the licenses and install the required packages:
+
+	```powershell
+	sdkmanager --licenses
+	sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+	```
+
+#### 3. Device Preparation (USB Debugging & ADB Authorization)
+
+The app targets devices running **Android 8.0 (API 26)** or higher.
+
+1. Enable Developer Options on your device:
+	- Open **Settings > About phone > Software information**.
+	- Tap **Build number** 7 times until you see the developer confirmation.
+2. Enable USB Debugging:
+	- Go to **Settings > Developer options**.
+	- Toggle **USB debugging** to **On**.
+3. Connect and authorize your PC:
+	- Connect the phone to your PC with a USB data cable and unlock the screen.
+	- When prompted, check **Always allow from this computer** and tap **Allow**.
+4. Verify the ADB connection in PowerShell:
+
+	```powershell
+	adb devices
+	```
+
+	Your device should be listed with the `device` status:
+
+	```text
+	List of devices attached
+	<DEVICE_SERIAL_ID>    device
+	```
 
 ### Build
 
@@ -129,4 +204,5 @@ The reminder text is passed to `blockAndExitToHome` at the point where the Story
 
 ## License & Author
 
-No license file or author profile is currently included in this repository. Add those details before publishing or redistributing the project.
+- **Author:** Costin Ghiujan ([`@coxteen`](https://github.com/coxteen))
+- **License:** MIT

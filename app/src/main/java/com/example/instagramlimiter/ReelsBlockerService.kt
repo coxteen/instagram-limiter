@@ -28,7 +28,6 @@ class ReelsBlockerService : AccessibilityService() {
     private var lastScrollTimestamp = 0L
     private val scrollDebounceMs = 1200L
 
-    // Pentru a ști când se schimbă utilizatorul/story-ul vizualizat
     private var lastStoryAuthor: String = ""
 
     private var overlayView: View? = null
@@ -44,7 +43,6 @@ class ReelsBlockerService : AccessibilityService() {
 
         val packageName = event.packageName?.toString() ?: return
 
-        // Dacă ieșim din Instagram, resetăm contoarele de sesiune
         if (packageName != "com.instagram.android") {
             if (reelsCount > 0 || storiesCount > 0) {
                 reelsCount = 0
@@ -61,15 +59,12 @@ class ReelsBlockerService : AccessibilityService() {
     }
 
     private fun checkStories(rootNode: AccessibilityNodeInfo) {
-        // În interfața de Stories există un container cu elementul de progres și numele autorului
-        // Căutăm nodurile tipice ecranului de Story (ex: bara de progres sau ID-urile specifice de header)
         val reelViewerMatches = rootNode.findAccessibilityNodeInfosByViewId("com.instagram.android:id/reel_viewer_title")
         val storyAuthorNode = if (reelViewerMatches.isNotEmpty()) reelViewerMatches[0] else null
 
         if (storyAuthorNode != null && storyAuthorNode.text != null) {
             val currentAuthor = storyAuthorNode.text.toString()
 
-            // Dacă s-a trecut la o altă persoană sau la primul story
             if (currentAuthor.isNotBlank() && currentAuthor != lastStoryAuthor) {
                 lastStoryAuthor = currentAuthor
                 storiesCount++
@@ -86,7 +81,6 @@ class ReelsBlockerService : AccessibilityService() {
     private fun checkReels(event: AccessibilityEvent, rootNode: AccessibilityNodeInfo) {
         if (event.eventType != AccessibilityEvent.TYPE_VIEW_SCROLLED) return
 
-        // Verificăm dacă suntem în viewer-ul de Reels (buton de audio, remix sau video container)
         val isReelsTab = rootNode.findAccessibilityNodeInfosByViewId("com.instagram.android:id/clips_video_container").isNotEmpty() 
                 || rootNode.findAccessibilityNodeInfosByViewId("com.instagram.android:id/clips_viewer_view_pager").isNotEmpty()
 
@@ -151,7 +145,7 @@ class ReelsBlockerService : AccessibilityService() {
 
         val dismissButton = Button(this).apply {
             text = "Închide"
-            setBackgroundColor(Color.parseColor("#E11D48")) // Roșu/accent modern
+            setBackgroundColor(Color.parseColor("#E11D48"))
             setTextColor(Color.WHITE)
             setOnClickListener {
                 removeOverlay()
