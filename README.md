@@ -73,7 +73,7 @@ Before building and deploying the application from source, make sure your develo
 
 Gradle and the Android Gradle Plugin (AGP) require OpenJDK 17.
 
-1. Search online for **JDK 17 Windows download**. Download the Windows installer (`.msi` or `.exe`) from an official JDK provider, such as [Microsoft OpenJDK](https://learn.microsoft.com/en-us/java/openjdk/download#openjdk-17) or [Eclipse Temurin](https://adoptium.net/temurin/releases/?version=17).
+1. Search online for **JDK 17 Windows download**. Download the Windows installer (`.msi` or `.exe`) from an official JDK provider, such as [Oracle](https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html).
 2. Run the downloaded installer and complete the setup. If offered, enable the options to set `JAVA_HOME` and add Java to `PATH`.
 3. Close and reopen your terminal, then verify the installation:
 
@@ -85,22 +85,22 @@ The output should report version 17.
 
 #### 2. Android SDK, Command-Line Tools & Platform Tools
 
-To build and interact with your phone without installing Android Studio:
+If you want to build and install the app without Android Studio, set up the Android SDK manually:
 
-1. Create this directory structure under `%LOCALAPPDATA%\Android\Sdk`. Create the folders yourself, then extract the downloaded command-line tools archive so its `bin` and `lib` folders are directly inside `latest`:
+1. Create the folder structure under `%LOCALAPPDATA%\Android\Sdk`, then extract the downloaded command-line tools archive so that its `bin` and `lib` folders are placed directly inside `latest`:
 
 	```text
-%LOCALAPPDATA%\Android\Sdk\
-└── cmdline-tools\
-    └── latest\
-        ├── bin\
-        │   └── sdkmanager.bat
-        └── lib\
+	%LOCALAPPDATA%\Android\Sdk\
+	└── cmdline-tools\
+	    └── latest\
+	        ├── bin\
+	        │   └── sdkmanager.bat
+	        └── lib\
 	```
 
-2. Download the **Command line tools only** archive for Windows from the [official Android Developer portal](https://developer.android.com/studio#command-tools). Extract its contents into the `latest` folder shown above.
+2. Download the Android SDK Command-Line Tools for Windows from the official [Android Developer portal](https://developer.android.com/studio#command-tools), then extract the archive into the `latest` folder shown above.
 
-3. Configure `ANDROID_HOME` and update your user `PATH` in PowerShell:
+3. Configure `ANDROID_HOME` and add the SDK tools to your user `PATH` in PowerShell:
 
 	```powershell
 	[Environment]::SetEnvironmentVariable("ANDROID_HOME", "$env:LOCALAPPDATA\Android\Sdk", "User")
@@ -110,14 +110,21 @@ To build and interact with your phone without installing Android Studio:
 	[Environment]::SetEnvironmentVariable("Path", "$currentPath;$sdkPaths", "User")
 	```
 
-	Restart your terminal afterwards to reload the environment variables.
+Close and reopen your terminal so the updated environment variables are loaded.
 
-4. Install Android 14 (API 34), Build Tools, and Platform Tools. Accept the licenses and install the required packages:
+4. Install the Android SDK packages required to build and debug the app. Run these in PowerShell:
 
 	```powershell
 	sdkmanager --licenses
 	sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 	```
+
+	The first command opens the Android SDK license prompt. Press `y` or accept each license to continue. The second command downloads:
+	- `platform-tools` — gives you `adb` and `fastboot`
+	- `platforms;android-34` — the Android 14 SDK platform
+	- `build-tools;34.0.0` — the Android build tools used by Gradle
+
+	This is the toolchain needed to compile the app and install it on your phone.
 
 #### 3. Device Preparation (USB Debugging & ADB Authorization)
 
