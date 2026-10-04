@@ -2,13 +2,11 @@
 
 # Instagram Limiter
 
-**Take back control of your screen time by limiting Instagram Reels and Stories in each session.**
+**Take back control of your screen time by limiting Instagram Reels and Stories in each session**
 
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](https://www.android.com/)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9.22-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org/)
 [![Gradle](https://img.shields.io/badge/Gradle-8.5-02303A?style=flat-square&logo=gradle&logoColor=white)](https://gradle.org/)
-
-[Report Bug](https://github.com/coxteen/quick-calendar/issues) · [Request Feature](https://github.com/coxteen/quick-calendar/issues)
 
 </div>
 
@@ -211,5 +209,5 @@ The reminder text is passed to `blockAndExitToHome` at the point where the Story
 
 ## License & Author
 
-- **Author:** Costin Ghiujan ([`@coxteen`](https://github.com/coxteen))
-- **License:** MIT
+- **Author:** [Costin Ghiujan](https://github.com/coxteen))
+- **License:** Released under the [MIT License](LICENSE).
