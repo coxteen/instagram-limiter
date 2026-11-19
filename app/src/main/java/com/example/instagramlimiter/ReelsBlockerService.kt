@@ -1,180 +1,196 @@
 package com.example.instagramlimiter
 
 import android.accessibilityservice.AccessibilityService
-import android.content.Context
-import android.graphics.Color
-import android.graphics.PixelFormat
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.provider.Settings
-import android.view.Gravity
-import android.view.View
-import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
 import android.widget.Toast
 
 class ReelsBlockerService : AccessibilityService() {
 
-    private val maxLimit = 3
+    private val maxItemsLimit = 3
+    private val scrollDebounceMs = 1100L
+    private val secondPromptDelayMs = 10_000L
+    private val cooldownDurationMs = 60_000L // 60 secunde
 
-    private var reelsCount = 0
+    private var isInInstagramSession = false
+    private var promptsCompleted = 0
+    private var scrollItemsCount = 0 // Contor comun pentru Reels + Home Feed scrolls
     private var storiesCount = 0
-
     private var lastScrollTimestamp = 0L
-    private val scrollDebounceMs = 1200L
+    private var lastStoryAuthor = ""
 
-    private var lastStoryAuthor: String = ""
+    private var cooldownUntilTimestamp = 0L
+    private var isExiting = false
 
-    private var overlayView: View? = null
-    private var windowManager: WindowManager? = null
+    private val analyzer = InstagramScreenAnalyzer()
+    private lateinit var overlayManager: BlockOverlayManager
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val secondPromptRunnable = Runnable {
+        if (isInInstagramSession && promptsCompleted == 1 && System.currentTimeMillis() >= cooldownUntilTimestamp) {
+            triggerIntentPrompt(promptNumber = 2)
+        }
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        overlayManager = BlockOverlayManager(this)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
+        if (event == null || isExiting) return
 
         val packageName = event.packageName?.toString() ?: return
+        if (packageName == applicationContext.packageName) return
 
         if (packageName != "com.instagram.android") {
-            if (reelsCount > 0 || storiesCount > 0) {
-                reelsCount = 0
-                storiesCount = 0
-                lastStoryAuthor = ""
-            }
+            resetSession()
             return
         }
+
+        val now = System.currentTimeMillis()
+
+        if (now < cooldownUntilTimestamp) {
+            val remaining = cooldownUntilTimestamp - now
+            enforceExitWithBlockModal(remainingCooldownMs = remaining)
+            return
+        }
+
+        if (!isInInstagramSession) {
+            isInInstagramSession = true
+            promptsCompleted = 0
+            triggerIntentPrompt(promptNumber = 1)
+            return
+        }
+
+        if (overlayManager.isShowing) return
 
         val rootNode = rootInActiveWindow ?: return
+        val currentContext = analyzer.detectContext(rootNode)
 
-        checkStories(rootNode)
-        checkReels(event, rootNode)
+        when (currentContext) {
+            InstagramContext.SAFE_DM -> {
+                // Suntem în mesaje: nu contorizăm nimic și nu blocăm
+                return
+            }
+            InstagramContext.STORIES -> handleStoryContext(rootNode)
+            InstagramContext.REELS, InstagramContext.HOME_FEED -> handleScrollContext(event, now, currentContext)
+            InstagramContext.OTHER -> Unit
+        }
     }
 
-    private fun checkStories(rootNode: AccessibilityNodeInfo) {
-        val reelViewerMatches = rootNode.findAccessibilityNodeInfosByViewId("com.instagram.android:id/reel_viewer_title")
-        val storyAuthorNode = if (reelViewerMatches.isNotEmpty()) reelViewerMatches[0] else null
-
-        if (storyAuthorNode != null && storyAuthorNode.text != null) {
-            val currentAuthor = storyAuthorNode.text.toString()
-
-            if (currentAuthor.isNotBlank() && currentAuthor != lastStoryAuthor) {
-                lastStoryAuthor = currentAuthor
-                storiesCount++
-
-                showToast("Stories vizualizate: $storiesCount/$maxLimit")
-
-                if (storiesCount >= maxLimit) {
-                    blockAndExitToHome("Fă puțină mișcare! Ieși la aer!")
+    private fun triggerIntentPrompt(promptNumber: Int) {
+        mainHandler.post {
+            overlayManager.showIntentPrompt(
+                onYesClicked = {
+                    cooldownUntilTimestamp = System.currentTimeMillis() + cooldownDurationMs
+                    exitInstagramToHome(showModalAfter = false, remainingCooldownMs = 0L)
+                },
+                onNoClicked = {
+                    if (promptNumber == 1) {
+                        promptsCompleted = 1
+                        mainHandler.removeCallbacks(secondPromptRunnable)
+                        mainHandler.postDelayed(secondPromptRunnable, secondPromptDelayMs)
+                    } else {
+                        promptsCompleted = 2
+                    }
                 }
+            )
+        }
+    }
+
+    private fun handleStoryContext(rootNode: AccessibilityNodeInfo) {
+        val author = analyzer.extractActiveAuthor(rootNode)
+        if (author.isNotBlank() && author != lastStoryAuthor) {
+            lastStoryAuthor = author
+            storiesCount++
+
+            showToast("Stories: $storiesCount/$maxItemsLimit")
+
+            if (storiesCount >= maxItemsLimit) {
+                cooldownUntilTimestamp = System.currentTimeMillis() + cooldownDurationMs
+                enforceExitWithBlockModal(cooldownDurationMs)
             }
         }
     }
 
-    private fun checkReels(event: AccessibilityEvent, rootNode: AccessibilityNodeInfo) {
+    private fun handleScrollContext(event: AccessibilityEvent, now: Long, context: InstagramContext) {
         if (event.eventType != AccessibilityEvent.TYPE_VIEW_SCROLLED) return
 
-        val isReelsTab = rootNode.findAccessibilityNodeInfosByViewId("com.instagram.android:id/clips_video_container").isNotEmpty() 
-                || rootNode.findAccessibilityNodeInfosByViewId("com.instagram.android:id/clips_viewer_view_pager").isNotEmpty()
+        if (now - lastScrollTimestamp > scrollDebounceMs) {
+            lastScrollTimestamp = now
+            scrollItemsCount++
 
-        val currentTime = System.currentTimeMillis()
-        if (isReelsTab && (currentTime - lastScrollTimestamp > scrollDebounceMs)) {
-            lastScrollTimestamp = currentTime
-            reelsCount++
+            val label = if (context == InstagramContext.REELS) "Reels" else "Feed"
+            showToast("$label scroll: $scrollItemsCount/$maxItemsLimit")
 
-            showToast("Reels vizualizate: $reelsCount/$maxLimit")
-
-            if (reelsCount >= maxLimit) {
-                blockAndExitToHome("Fă puțină mișcare! Ieși la aer!")
+            if (scrollItemsCount >= maxItemsLimit) {
+                cooldownUntilTimestamp = System.currentTimeMillis() + cooldownDurationMs
+                enforceExitWithBlockModal(cooldownDurationMs)
             }
         }
     }
 
-    private fun blockAndExitToHome(message: String) {
-        performGlobalAction(GLOBAL_ACTION_HOME)
-
-        Handler(Looper.getMainLooper()).postDelayed({
-            showOverlay(message)
-        }, 300L)
+    private fun enforceExitWithBlockModal(remainingCooldownMs: Long) {
+        exitInstagramToHome(showModalAfter = true, remainingCooldownMs = remainingCooldownMs)
     }
 
-    private fun showOverlay(message: String) {
-        if (!Settings.canDrawOverlays(this)) {
-            showToast("Lipsește permisiunea de Overlay!")
-            return
-        }
+    private fun exitInstagramToHome(showModalAfter: Boolean, remainingCooldownMs: Long) {
+        if (isExiting) return
+        isExiting = true
+        mainHandler.removeCallbacks(secondPromptRunnable)
 
-        if (overlayView != null) return
+        performGlobalAction(GLOBAL_ACTION_BACK)
 
-        val layoutParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        mainHandler.postDelayed({
+            performGlobalAction(GLOBAL_ACTION_HOME)
+
+            if (showModalAfter) {
+                mainHandler.postDelayed({
+                    overlayManager.showBlockModal(
+                        message = "Enough doomscroll",
+                        remainingCooldownMs = remainingCooldownMs,
+                        onDismissed = {
+                            isExiting = false
+                        }
+                    )
+                    isExiting = false
+                }, 150L)
             } else {
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams.TYPE_PHONE
-            },
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.CENTER
-        }
-
-        val rootLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#F2121212"))
-            setPadding(60, 60, 60, 60)
-        }
-
-        val textView = TextView(this).apply {
-            text = message
-            textSize = 21f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 50)
-        }
-
-        val dismissButton = Button(this).apply {
-            text = "Închide"
-            setBackgroundColor(Color.parseColor("#E11D48"))
-            setTextColor(Color.WHITE)
-            setOnClickListener {
-                removeOverlay()
+                isExiting = false
             }
-        }
-
-        rootLayout.addView(textView)
-        rootLayout.addView(dismissButton)
-
-        overlayView = rootLayout
-        windowManager?.addView(overlayView, layoutParams)
+        }, 120L)
     }
 
-    private fun removeOverlay() {
-        overlayView?.let {
-            windowManager?.removeView(it)
-            overlayView = null
+    private fun resetSession() {
+        if (!isInInstagramSession && scrollItemsCount == 0 && storiesCount == 0) return
+
+        mainHandler.removeCallbacks(secondPromptRunnable)
+        isInInstagramSession = false
+        promptsCompleted = 0
+        scrollItemsCount = 0
+        storiesCount = 0
+        lastStoryAuthor = ""
+
+        if (overlayManager.isShowing && System.currentTimeMillis() >= cooldownUntilTimestamp) {
+            mainHandler.post { overlayManager.dismiss() }
         }
     }
 
     private fun showToast(message: String) {
-        Handler(Looper.getMainLooper()).post {
+        mainHandler.post {
             Toast.makeText(applicationContext, message, Toast.LENGTH_SHORT).show()
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        removeOverlay()
+        mainHandler.removeCallbacks(secondPromptRunnable)
+        if (::overlayManager.isInitialized) {
+            overlayManager.dismiss()
+        }
     }
 
     override fun onInterrupt() {}
